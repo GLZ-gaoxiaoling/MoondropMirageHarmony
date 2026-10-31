@@ -1,4 +1,4 @@
-import { connection, access } from '@kit.ConnectivityKit';
+import { connection, access, constant } from '@kit.ConnectivityKit';
 import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Gaia, GaiaLink, AncMode, BatteryLevels } from '../ble/GaiaSpp';
@@ -32,6 +32,8 @@ struct DevicePage {
 
   private link: GaiaLink = new GaiaLink();
   private timerId: number = -1;
+  private manualDisconnected: boolean = false;
+  private autoConnecting: boolean = false;
 
   private log(msg: string): void {
     hilog.info(0x0000, TAG, '%{public}s', msg);
@@ -46,6 +48,75 @@ struct DevicePage {
       this.onFound(results);
     });
     this.loadPaired();
+    this.tryAutoConnect();
+  }
+
+  /** 每次回到前台再探一次：耳机可能刚连上手机 */
+  onPageShow(): void {
+    if (!this.connected && !this.manualDisconnected) {
+      this.loadPaired();
+      this.tryAutoConnect();
+    }
+  }
+
+  /**
+   * 进页面自动接管：耳机已与手机连接时，直接建 Gaia 会话进入降噪控制台，
+   * 用户不必再点一次「连接」。没连则安静地保持扫描/已配对列表。
+   */
+  private async tryAutoConnect(): Promise<void> {
+    if (this.connected || this.autoConnecting || this.manualDisconnected) {
+      return;
+    }
+    let mirageId: string = '';
+    let mirageName: string = '';
+    for (let i = 0; i < this.paired.length; i++) {
+      const n: string = this.paired[i].name;
+      if (n === MIRAGE_NAME || n.indexOf('MIRAGE') >= 0) {
+        mirageId = this.paired[i].id;
+        mirageName = n;
+        break;
+      }
+    }
+    if (mirageId.length === 0) {
+      return;
+    }
+    // 没连任何蓝牙设备就别白等 SPP 超时
+    let anyConnected: boolean = false;
+    try {
+      anyConnected = connection.getProfileConnectionState() ===
+        constant.ProfileConnectionState.STATE_CONNECTED;
+    } catch (e) {
+      anyConnected = false;
+    }
+    if (!anyConnected) {
+      return;
+    }
+    this.autoConnecting = true;
+    this.statusText = '自动连接中…';
+    try {
+      await this.startSession(mirageId, mirageName);
+    } catch (e) {
+      this.statusText = '未连接';
+      this.link.disconnect();
+      this.connected = false;
+      this.log('auto connect skipped');
+    }
+    this.autoConnecting = false;
+  }
+
+  /** 建链后的统一初始化（手动连接 / 自动接管共用） */
+  private async startSession(id: string, name: string): Promise<void> {
+    await this.link.connect(id);
+    this.connected = true;
+    this.manualDisconnected = false;
+    this.deviceName = name.length === 0 ? 'Mirage' : name;
+    this.statusText = '已连接';
+    await this.refreshAll();
+    if (this.timerId < 0) {
+      this.timerId = setInterval(() => {
+        this.refreshBattery();
+      }, POLL_MS) as number;
+    }
   }
 
   /** 已配对设备：耳机连着时不会出现在扫描结果里，这条路径是必需的 */
@@ -211,14 +282,7 @@ struct DevicePage {
       this.log('pair skipped');
     }
     try {
-      await this.link.connect(id);
-      this.connected = true;
-      this.deviceName = name.length === 0 ? 'Mirage' : name;
-      this.statusText = '已连接';
-      await this.refreshAll();
-      this.timerId = setInterval(() => {
-        this.refreshBattery();
-      }, POLL_MS) as number;
+      await this.startSession(id, name);
     } catch (e) {
       this.logErr('connect failed');
       this.statusText = '连接失败';
@@ -287,6 +351,7 @@ struct DevicePage {
   }
 
   private onDisconnect(): void {
+    this.manualDisconnected = true;
     this.stopAll();
     this.statusText = '未连接';
     this.deviceName = 'Mirage';

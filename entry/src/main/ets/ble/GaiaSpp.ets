@@ -376,7 +376,7 @@ export class GaiaLink {
     const frames: Array<Uint8Array> = Gaia.batteryPoll();
     const sup: Uint8Array = await this.send(frames[0], Feat.BATTERY, BattCmd.GET_SUPPORTED);
     const levels: Uint8Array = await this.send(frames[1], Feat.BATTERY, BattCmd.GET_LEVELS);
-    hilog.info(0x0000, 'Mirage', 'batt supported=%{public}s levels=%{public}s',
+    hilog.debug(0x0000, 'Mirage', 'batt supported=%{public}s levels=%{public}s',
       Gaia.hex(sup), Gaia.hex(levels));
     return Gaia.parseBattery(levels);
   }
