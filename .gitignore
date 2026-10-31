@@ -11,3 +11,9 @@ oh_modules/
 local.properties
 .DS_Store
 *.log
+# 本地签名配置（含凭据，绝不入库）
+build-profile.local.json5
+*.p12
+*.cer
+*.p7b
+*.csr
