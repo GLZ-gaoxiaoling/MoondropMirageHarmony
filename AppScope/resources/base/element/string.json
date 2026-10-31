@@ -1,0 +1,28 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "Mirage"
+    },
+    {
+      "name": "module_desc",
+      "value": "Mirage 耳机管家（鸿蒙版）"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Mirage 主入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Mirage"
+    },
+    {
+      "name": "EntryFormAbility_desc",
+      "value": "Mirage 卡片"
+    },
+    {
+      "name": "EntryFormAbility_label",
+      "value": "Mirage"
+    }
+  ]
+}
