@@ -35,29 +35,33 @@
     ],
     "requestPermissions": [
       {
-        "name": "ohos.permission.ACCESS_BLUETOOTH"
-      },
-      {
-        "name": "ohos.permission.GET_BLUETOOTH_PEERS_MAC"
-      },
-      {
-        "name": "ohos.permission.LOCATION",
-        "reason": "$string:module_desc",
+        "name": "ohos.permission.ACCESS_BLUETOOTH",
+        "reason": "$string:permission_bluetooth_reason",
         "usedScene": {
           "abilities": [
             "EntryAbility"
           ],
-          "when": "always"
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.GET_BLUETOOTH_PEERS_MAC",
+        "reason": "$string:permission_bluetooth_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
         }
       },
       {
         "name": "ohos.permission.APPROXIMATELY_LOCATION",
-        "reason": "$string:module_desc",
+        "reason": "$string:permission_location_reason",
         "usedScene": {
           "abilities": [
             "EntryAbility"
           ],
-          "when": "always"
+          "when": "inuse"
         }
       }
     ]

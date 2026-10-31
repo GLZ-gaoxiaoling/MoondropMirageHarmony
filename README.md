@@ -1,46 +1,74 @@
-# MirageHarmony（水月雨 Mirage 耳机 · 鸿蒙版）
+# MirageHarmony（水月雨 MOONDROP MIRAGE · 鸿蒙版）
 
-FreeBuds 7 风格设备页 + 逆向落地的 9ECA BLE 协议。协议证据链见 [PROTOCOL.md](./PROTOCOL.md)。
+FreeBuds 7 风格设备页 + 从官方 APK 逆向落地的 **Gaia V3 over RFCOMM SPP** 控制协议。
 
-## 环境
+- 协议证据链：[PROTOCOL.md](./PROTOCOL.md)（jadx 反编译 + btsnoop 真机抓包双向印证）
+- 解析工具链：[tools/](./tools)（btsnoop → L2CAP 重组 → RFCOMM → Gaia 解码，可复现全部结论）
 
-- DevEco Studio（`C:\Program Files\Huawei\DevEco Studio`）+ API 26 SDK（`%LOCALAPPDATA%\OpenHarmony\Sdk\26.0.0`）
-- 构建：用 DevEco 直接打开本目录，或 `tools/hvigor` + `tools/ohpm`（DevEco 自带）命令行构建
-- 真机调试：`toolchains/hdc.exe`（SDK 自带）
+## 功能（均已实测链路）
 
-## 构建（DevEco 内）
+| 能力 | 实现 |
+| --- | --- |
+| 扫描耳机 | 经典蓝牙发现 `connection.discoveryResult`，`MOONDROP MIRAGE` 自动置顶 |
+| 配对 + 建链 | `connection.pairDevice` + `socket.sppConnect(uuid=1101, SPP_RFCOMM)` + V1 握手 |
+| 电量（左/右/仓） | `BATTERY(13)` cmd0/cmd1 轮询 + TLV 解析，3 秒刷新 |
+| 降噪三档 | `ANC_V2(32)` cmd4：关闭 `00` / 透传 `02` / 降噪 `04`（=自适应降噪） |
+| 固件版本 | `BASIC(0)` cmd5 → ASCII（实测 `3.5.2`） |
+| 左右 SN | `BASIC(0)` cmd20/cmd21 → ASCII |
+| 双设备对端 | `ONEBRINGTWO(20)` cmd5 → 对端名 |
+| UI | 图 2 复刻：深紫渐变 + 电量胶囊 + 设备卡 + 噪声控制 + 底部三 Tab |
 
-1. 打开本目录 → 等待 Sync 完成（会自动拉 `oh-package` 依赖）。
-2. `compatibleSdkVersion` 模板默认 `5.0.0(12)`；目标鸿蒙 7 请在 Project Structure 里切到已安装的 API 26 SDK。
-3. 签名：Run 前先配自动签名（File → Project Structure → Signing Configs）。
-4. 权限：`ACCESS_BLUETOOTH / GET_BLUETOOTH_PEERS_MAC / LOCATION` 已在 `entry/.../module.json5` 声明，首次连接时系统弹窗授权。
+## 构建（命令行，已实测通过）
 
-## 真机抓包指南（回填协议用，主人操作）
+```powershell
+# SDK 用 DevEco 自带的那套（结构完整，含 sdk-pkg.json 元数据）
+$env:DEVECO_SDK_HOME = 'C:\Program Files\Huawei\DevEco Studio\sdk'
 
-逆向缺的最后一块拼图是**真实空中包**，用来确认：响应帧 status 字节、电量上报通道、ANC 三档 opcode、EQ/PEQ 回包字段。
+# 装依赖（无第三方依赖，仅初始化）
+& 'C:\Program Files\Huawei\DevEco Studio\tools\ohpm\bin\ohpm.bat' install
 
-Android 手机操作：
+# 编译（产物：entry/build/default/outputs/default/entry-default-unsigned.hap）
+node 'C:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.js' assembleHap -p product=default -p buildMode=debug
+```
 
-1. 开发者选项 → 打开 **“启用蓝牙 HCI 信息收集日志”（btsnoop）**。
-2. 复现以下动作（每个动作间隔 3 秒，默念记下时间点）：
-   - 打开 MOONDROP App → 连接 Mirage（记录连接时刻）
-   - 首页电量刷新（下拉/等待电量数字出现）
-   - 噪声控制：关闭 → 透传 → 降噪，各停 3 秒
-   - EQ 预设切换 + 自定义 PEQ 改一个频点并保存
-   - 音量加减各一次；改一次提示音语言/查一次序列号（如 App 支持）
-   - 关机/断开一次（如有该按钮）
-3. 开发者选项 → **“获取 bug 报告”**（或 `adb bugreport`），解压出 `btsnoop_hci.log` 发给小雪。
-4. 同时记下：Mirage 的**蓝牙广播名** + App 显示的**固件版本号**。
+实测结果：`COMPILE RESULT` 0 error，`BUILD SUCCESSFUL`，产物 `entry-default-unsigned.hap` ≈ 203 KB。
 
-小雪收到后：用 `rea` 对照解帧，回填 `MirageBle.ets` 的响应解码 + ANC 通道 + 电量通道，然后 DevicePage 接真实数据。
+> 注意：**不要**用 `C:\Users\tiany\AppData\Local\OpenHarmony\Sdk` 当 `DEVECO_SDK_HOME`——那是版本化布局（`Sdk/26.0.0/toolchains`），
+> 而 hvigor 的 HarmonyOS SDK 加载器要求扁平布局且需要 `sdk-pkg.json` 元数据（该目录没有），会报 `00303168 SDK component missing`。
+> `local.properties` 里已把 `hwsdk.dir` / `sdk.dir` 指向 DevEco 自带 SDK。
 
-## 当前状态
+## 在 DevEco 里运行
 
-- ✅ 工程骨架（DevEco 模板）+ 包名 `com.moondrop.mirage`
-- ✅ `ble/MirageBle.ets`：UUID/帧编解码/命令字/扫描连接/命令配对（均为逆向实锤）
-- ✅ `pages/DevicePage.ets`：图 2 复刻页（静态 + 连接流程已接）
-- ⏳ 电量/ANC/EQ 真实数据：✅ 已回填（Gaia V3，见 PROTOCOL.md 附录 A）
-- ✅ `ble/GaiaSpp.ets`：Gaia transport/V3 编解码 + ANC/电量/EQ 业务封装（194 帧链式验证）
-- ⏳ DevicePage 改接 GaiaSpp SPP 通道 + DevEco 编译验证（下一轮）
-- ⏳ EQ blob 字节语义 / ANC 第三选项文案 / 低电量包二次确认（待 V2 轮补抓）
-- ⏳ OTA（杰理/蓝讯/Airoha/Gaia 四通道）、手势、双设备页（第二阶段）
+1. DevEco Studio → Open → 选本目录。
+2. 首次运行会要求签名：Project Structure → Signing Configs → 勾选 **Automatically generate signature**（登录华为开发者账号后一键生成）。
+   这是 HarmonyOS 的平台硬门槛：调试签名里的 profile 由 AGC 签发并绑定 **bundleName + 设备 UDID**，
+   无法离线伪造（本机 `~/.ohos/config` 里现有的两套是别的 bundleName 的 profile，不能复用）。
+3. 连手机 Run 即可安装。
+
+签名身份（已固定，供生成 profile 时核对）：
+
+- bundleName：`com.moondrop.mirage`
+- 设备类型：phone / tablet
+- 权限：`ohos.permission.ACCESS_BLUETOOTH`、`GET_BLUETOOTH_PEERS_MAC`、`APPROXIMATELY_LOCATION`（均为 user_grant，首次连接时弹窗）
+
+## 协议要点（详见 PROTOCOL.md）
+
+```
+transport: FF | VER(01=V1协商, 04=V3业务) | FLAGS(00) | LEN(1B) | V3PDU(=LEN+4)   无 checksum
+V3PDU:     vendor(U16BE) | command(U16BE) | payload
+command:   feature[9:15] | type[7:8](0=CMD 1=NOTIF 2=RESP 3=ERR) | cmd[0:6]
+vendor:    29 = QTIL-V3（本机全部业务帧）
+```
+
+## 真机抓包（如需再补协议）
+
+1. 手机开发者选项打开「蓝牙数据包日志 / HCI 收集」。
+2. 复现动作（每步隔 3 秒）。
+3. `adb bugreport mirage.zip`，解压出 `FS/data/misc/bluetooth/logs/btsnoop_hci_*.log`。
+4. 解析：
+
+```powershell
+python tools/l2cap_reassemble.py <btsnoop.log> --dump out      # 按 handle+cid 重组 SDU
+python tools/gaia_split.py out/h004_cid0041_rx.bin --dump out2 # RFCOMM UIH 按 DLCI 分流
+python tools/gaia_decode.py out2/h004_cid0041_rx_dlci2.bin --dir rx   # Gaia V3 逐帧解码
+```

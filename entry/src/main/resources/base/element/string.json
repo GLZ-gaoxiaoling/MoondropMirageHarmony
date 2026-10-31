@@ -2,31 +2,39 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "module description"
+      "value": "Mirage 耳机管家（鸿蒙版）"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "description"
+      "value": "Mirage 耳机管家"
     },
     {
       "name": "EntryAbility_label",
-      "value": "label"
+      "value": "Mirage"
     },
     {
       "name": "EntryFormAbility_desc",
-      "value": "form_description"
+      "value": "Mirage 卡片"
     },
     {
       "name": "EntryFormAbility_label",
-      "value": "form_label"
+      "value": "Mirage"
     },
     {
       "name": "widget_desc",
-      "value": "This is a service widget."
+      "value": "Mirage 电量卡片"
     },
     {
       "name": "widget_display_name",
-      "value": "widget"
+      "value": "Mirage"
+    },
+    {
+      "name": "permission_bluetooth_reason",
+      "value": "连接并控制 MOONDROP MIRAGE 耳机（电量、降噪模式、设备信息）"
+    },
+    {
+      "name": "permission_location_reason",
+      "value": "系统要求蓝牙扫描设备时必须具备模糊位置权限"
     }
   ]
 }

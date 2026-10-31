@@ -73,21 +73,12 @@ def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     dump = sys.argv[sys.argv.index('--dump') + 1] if '--dump' in sys.argv else None
     skip = int(sys.argv[sys.argv.index('--skip') + 1]) if '--skip' in sys.argv else 0
-    bufs = {}
-    for arg in args:
-        if os.path.isfile(arg):
-            with open(arg, 'rb') as f:
-                bufs[arg] = f.read()
-    if not bufs:
-        print('usage: rfcomm_parse.py <stream.bin>... [--skip N] [--dump DIR]')
-        return
     for name in sorted(bufs):
         raw = bytes(bufs[name])
         direction = '_rx' in name
         tag = 'D->H' if direction else 'H->D'
         frames, stop = parse_rfcomm(raw[skip:])
-        print('== %s %s frames=%d bytes=%d skip=%d stop=%d'
-              % (name, tag, len(frames), len(raw), skip, stop))
+        print('== %s %s frames=%d bytes=%d skip=%d stop=%d' % (name, tag, len(frames), len(raw), skip, stop))
         n_data = 0
         for fr in frames:
             if fr[0] == 'ctrl':
@@ -99,18 +90,17 @@ def main() -> None:
                         txt = bytes(info).decode('ascii')
                     except Exception:
                         txt = ''
-                    print('   DLCI=%d len=%d %s %r'
-                          % (dlci, len(info), bytes(info[:64]).hex(), txt[:56]))
+                    print('   DLCI=%d len=%d %s %r' % (dlci, len(info), bytes(info[:64]).hex(), txt[:56]))
                 n_data += 1
                 if dump and dlci != 0:
+                    import os
                     os.makedirs(dump, exist_ok=True)
-                    with open('%s/dlci%d_%s.bin' % (dump, dlci, 'rx' if direction else 'tx'),
-                              'ab') as fh:
-                        fh.write(struct.pack('>I', len(info)))
-                        fh.write(bytes(info))
+                    fh = open('%s/dlci%d_%s.bin' % (dump, dlci, 'rx' if direction else 'tx'), 'ab')
+                    fh.write(struct.pack('>I', len(info)))
+                    fh.write(bytes(info))
+                    fh.close()
         if n_data > 30:
             print('   ... +%d more data frames' % (n_data - 30))
-
 
 if __name__ == '__main__':
     main()

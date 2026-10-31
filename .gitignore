@@ -1,10 +1,13 @@
+.hvigor/
 hvigor/
+build/
+entry/build/
+node_modules/
+oh_modules/
 .idea/
 *.hsp
 *.hap
 *.app
-build/
-node_modules/
-oh_modules/
 local.properties
 .DS_Store
+*.log

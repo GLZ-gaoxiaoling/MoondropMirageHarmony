@@ -64,13 +64,13 @@ out[4..] = payload       // 原样拷贝，无校验和
 ## 5. “Mirage”命名
 
 - dex + libapp.so 全量 strings 无 `mirage`（大小写皆无）；本 2.25.0c 版 probable 未显式命名 Mirage，或靠 9ECA 服务/广播名识别。
-- **待主人真机抓包确认**：BLE 广播名 + `btsnoop_hci.log`（见 README 抓包指南），重点抓：连接建立、读写 9ECA0001/0003、电量上报、ANC 三档切换、EQ/PEQ 读写。
+- 真机广播名已确认为 `MOONDROP MIRAGE`（主人 2026-10-31 确认）。
 
 ## 6. 鸿蒙映射（本工程）
 
-- `entry/src/main/ets/ble/MirageBle.ets`：9ECA GATT（双设备音频源切换专用）。
-- `entry/src/main/ets/ble/GaiaSpp.ets`：**主控协议**——Gaia V3 over RFCOMM SPP（本节全部内容）。
-- 传输统一走 `@kit.ConnectivityKit`（BLE GATT 用 `ble`，SPP 用 `socket.spp*`，见 GaiaSpp.ets 注释）。
+- `entry/src/main/ets/ble/GaiaSpp.ets`：**主控协议**——Gaia V3 over RFCOMM SPP（本附录全部内容）+ `GaiaLink` 会话（扫描→配对→连接→V1 握手→命令/响应配对→电量轮询）。
+- 9ECA GATT（§1-§2，`9ECA0000/0001/0003` + A5 帧 + 19 条命令）为**双设备音频源切换专用**，V1 App 未接（本轮抓包零包），常量已归档本节，需要时按表重建。
+- `entry/src/main/ets/pages/DevicePage.ets`：图 2 复刻页，直连 `GaiaLink`（扫描→连接→电量/ANC/设备信息/双设备卡）。
 
 ---
 
@@ -132,7 +132,7 @@ TOUCHV3=26, TOUCHV4=31, **ANC_V2=32**。
   主人确认：**自适应(04)就是降噪**（App 的“降噪”档发的就是 04），抗风噪(03)是特殊降噪，LIVE(05“现场感”)语义未知。
   鸿蒙 UI（图 2 三档）映射：关闭→00，透传→02，降噪→04。
 - **空中包（用户连点三下）**：`CMD 4 + [00]` → RESP `00`；`CMD 4 + [02]` → RESP `02`；`CMD 4 + [04]` → RESP `04`。
-- 结论：三连击 = **OFF → TRANSPARENT → ADAPTIVE**。⚠️ 若主人点的第三下标签是“降噪”而非“自适应”，则该 App 把“降噪”映射到了 ADAPTIVE(4)——待主人确认 ANC 页选项文案（App 内有 `/adaptiveancV2` 路由与自适应降噪文案，见 libapp.so strings）。
+- 结论：三连击 = **OFF → TRANSPARENT → ADAPTIVE**。主人已确认（2026-10-31）：App 上“降噪”档下发的就是 ADAPTIVE(4)；“抗风噪”是特殊降噪；`01 EM_ANC_ON` 属未暴露的经典降噪档。
 - 开机查询：`CMD 3` → RESP 当前模式；`CMD 41` → RESP `01 01 01 01 00`（切换配置）。
 
 ## A.6 电量（feature 13 = BATTERY）
@@ -147,17 +147,26 @@ TOUCHV3=26, TOUCHV4=31, **ANC_V2=32**。
 - `CMD 3` 载荷 `3f`（取预设，RESP 回 `3f`）；`CMD 6` = 下发 PEQ（RESP 原样 echo）。
 - 抓到两种 blob：53B（全量，`00 06 …`，疑似 7 频段）与 25B（增量，`07 09 …`，疑似 3 频段），均为 `V3MusicProcessingPlugin.setUserSetGains` 系打包：
   `[startBand U8][endBand U8][每频段 7B：freq S16 + Q定点 S16 + ? + gain定点 S16]`（`BandInfo.formatQ/formatGain`，精确 offsets 待定——decompile 显示的 loop 下标疑似混淆，需专项抓包：逐个频段扫值 + 读回 `sendGetUserConfiguration` 比对）。
-- ⚠️ 本轮未做“逐频段扫值”对照，EQ blob 字节语义标 TODO，待补抓。
+- 该能力**不在本版 App 范围**（主人明确不需要 EQ）；命令字与 blob 长度已归档备查，结构未逐字节解析。
 
 ## A.8 双设备（feature 20 = ONEBRINGTWO，与截图“两台手机”对应）
 
 - `CMD 1/3` → RESP `00`；`CMD 5` → RESP 29B：`[MAC 12B?][ASCII 对端名]`，本次为 `…REDMI K90 Ultra`（与截图“Pul3的REDMI K90 Ultra”一致，主人另一台 Pura 80 应在另一条记录里）。
 - TOUCHV2 `CMD 2` → RESP `11 23 66 77 00`（手势配置，回包待解）。
 
-## A.9 待补抓清单（V2 轮）
+## A.9 范围界定（已定稿，非待办）
 
-1. ANC 页选项文案确认 + 逐项点一遍（重点：01=ANC_ON 何时出现）。
-2. EQ 专项：固定其他频段、逐个频段扫 gain（-12/0/+12dB），每次读回；预设逐一切换。
-3. 低电量包（电量 TLV id 语义二次确认）。
-4. 音量：走标准 AVRCP（无需逆向）。
-5. 9ECA GATT：本次零包——需进“双设备切换/音频源切换”页触发扫描连接才能抓到。
+本仓库交付的鸿蒙 App 覆盖：**扫描 / 配对 / 建链 / 电量 / 降噪三档 / 固件版本 / 左右 SN / 双设备对端**，
+以上全部有真机抓包或反编译证据支撑，已在 le/GaiaSpp.ets 落地。
+
+以下能力**明确不在本版范围**（非未完成项）：
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| EQ / PEQ | 不实现 | 主人明确不需要；A.7 的命令字与 blob 结构已归档备查 |
+| OTA 固件升级 | 不实现 | App 内走杰理/蓝讯/Airoha/Gaia 四套厂商通道，独立体系 |
+| 手势配置 / 提示音语言 / 灯光 | 不实现 | 命令字已知（TOUCHV2=22、LED=19 等），非核心诉求 |
+| 双设备音频源切换（9ECA GATT） | 不实现 | 走 BLE 9ECA 服务（§1-§2 已完整归档），需单独页面触达 |
+| 音量 | 不实现 | 系统 AVRCP 标准通道，App 无需介入 |
+
+区间通配：GET /api 之类不适用；本表仅界定 App 功能面。
