@@ -25,6 +25,7 @@ struct DevicePage {
   @State caseBatt: number = -1;
   @State ancMode: number = -1;
   @State found: Array<FoundDev> = [];
+  @State paired: Array<FoundDev> = [];
   @State peers: Array<string> = [];
   @State scanning: boolean = false;
   @State connected: boolean = false;
@@ -44,6 +45,32 @@ struct DevicePage {
     connection.on('discoveryResult', (results: Array<connection.DiscoveryResult>) => {
       this.onFound(results);
     });
+    this.loadPaired();
+  }
+
+  /** 已配对设备：耳机连着时不会出现在扫描结果里，这条路径是必需的 */
+  private loadPaired(): void {
+    try {
+      const ids: Array<string> = connection.getPairedDevices();
+      const list: Array<FoundDev> = [];
+      for (let i = 0; i < ids.length; i++) {
+        let name: string = '';
+        try {
+          name = connection.getRemoteDeviceName(ids[i]);
+        } catch (e) {
+          name = '';
+        }
+        list.push({ id: ids[i], name: name, rssi: 0 });
+      }
+      list.sort((a: FoundDev, b: FoundDev) => {
+        const am: number = a.name === MIRAGE_NAME ? 0 : 1;
+        const bm: number = b.name === MIRAGE_NAME ? 0 : 1;
+        return am - bm;
+      });
+      this.paired = list;
+    } catch (e) {
+      this.log('paired list skipped');
+    }
   }
 
   aboutToDisappear(): void {
@@ -93,7 +120,6 @@ struct DevicePage {
       const at: abilityAccessCtrl.AtManager = abilityAccessCtrl.createAtManager();
       const perms: Array<Permissions> = [
         'ohos.permission.ACCESS_BLUETOOTH',
-        'ohos.permission.GET_BLUETOOTH_PEERS_MAC',
         'ohos.permission.APPROXIMATELY_LOCATION'
       ];
       await at.requestPermissionsFromUser(ctx, perms);
@@ -202,6 +228,8 @@ struct DevicePage {
   }
 
   private async refreshAll(): Promise<void> {
+    // 电量先查：连上就能看到数字，其余信息随后补齐
+    await this.refreshBattery();
     try {
       this.fwVersion = await this.link.getFirmware();
     } catch (e) {
@@ -269,24 +297,7 @@ struct DevicePage {
     this.fwVersion = '';
     this.snInfo = '';
     this.peers = [];
-  }
-
-  @Builder
-  battColumn(label: string, value: number, width: number) {
-    Column() {
-      Text(label)
-        .fontSize(28)
-        .fontColor('rgba(255,255,255,0.75)')
-        .width(width)
-        .height(150)
-        .textAlign(TextAlign.Center)
-        .backgroundColor('rgba(255,255,255,0.10)')
-        .borderRadius(width / 2)
-      Text(this.battText(value))
-        .fontSize(14)
-        .fontColor(Color.White)
-        .margin({ top: 6 })
-    }
+    this.loadPaired();
   }
 
   build() {
@@ -296,11 +307,17 @@ struct DevicePage {
           Column({ space: 12 }) {
             Row() {
               Text(this.deviceName + ' ▾')
-                .fontSize(26)
+                .fontSize(24)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
-              Blank()
-              Text(this.statusText).fontSize(12).fontColor('#AAAAAA')
+                .layoutWeight(1)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              Text(this.statusText)
+                .fontSize(11)
+                .fontColor('#AAAAAA')
+                .maxLines(1)
+                .margin({ left: 8 })
             }
             .width('100%')
             .padding({ left: 20, right: 20, top: 16 })
@@ -317,9 +334,39 @@ struct DevicePage {
             .padding({ left: 20 })
 
             Row({ space: 20 }) {
-              this.battColumn('L', this.leftBatt, 84)
-              this.battColumn('R', this.rightBatt, 84)
-              this.battColumn('仓', this.caseBatt, 84)
+              Column() {
+                Text('L')
+                  .fontSize(28)
+                  .fontColor('rgba(255,255,255,0.75)')
+                  .width(84)
+                  .height(150)
+                  .textAlign(TextAlign.Center)
+                  .backgroundColor('rgba(255,255,255,0.10)')
+                  .borderRadius(42)
+                Text(this.battText(this.leftBatt)).fontSize(14).fontColor(Color.White).margin({ top: 6 })
+              }
+              Column() {
+                Text('R')
+                  .fontSize(28)
+                  .fontColor('rgba(255,255,255,0.75)')
+                  .width(84)
+                  .height(150)
+                  .textAlign(TextAlign.Center)
+                  .backgroundColor('rgba(255,255,255,0.10)')
+                  .borderRadius(42)
+                Text(this.battText(this.rightBatt)).fontSize(14).fontColor(Color.White).margin({ top: 6 })
+              }
+              Column() {
+                Text('仓')
+                  .fontSize(28)
+                  .fontColor('rgba(255,255,255,0.75)')
+                  .width(84)
+                  .height(150)
+                  .textAlign(TextAlign.Center)
+                  .backgroundColor('rgba(255,255,255,0.10)')
+                  .borderRadius(42)
+                Text(this.battText(this.caseBatt)).fontSize(14).fontColor(Color.White).margin({ top: 6 })
+              }
             }
             .width('100%')
             .justifyContent(FlexAlign.Center)
@@ -335,6 +382,35 @@ struct DevicePage {
                   this.onScan();
                 }
               })
+
+            if (this.paired.length > 0 && !this.connected) {
+              Column({ space: 6 }) {
+                Text('已配对设备').fontSize(13).fontColor('#999999').width('92%')
+                ForEach(this.paired, (d: FoundDev) => {
+                  Row() {
+                    Column() {
+                      Text(d.name.length === 0 ? d.id : d.name)
+                        .fontSize(15)
+                        .fontColor(Color.White)
+                      Text(d.id).fontSize(11).fontColor('#888888')
+                    }
+                    .alignItems(HorizontalAlign.Start)
+                    Blank()
+                    Button('连接', { type: ButtonType.Capsule })
+                      .fontSize(13)
+                      .onClick(() => {
+                        this.onConnect(d.id, d.name);
+                      })
+                  }
+                  .width('92%')
+                  .padding(12)
+                  .backgroundColor(d.name === MIRAGE_NAME ? 'rgba(232,200,122,0.12)' : 'rgba(255,255,255,0.04)')
+                  .borderRadius(16)
+                }, (d: FoundDev) => 'p' + d.id)
+              }
+              .width('100%')
+              .alignItems(HorizontalAlign.Center)
+            }
 
             if (this.found.length > 0 && !this.connected) {
               Column({ space: 6 }) {
@@ -399,21 +475,31 @@ struct DevicePage {
               Row({ space: 8 }) {
                 Button('关闭')
                   .flexGrow(1)
+                  .fontSize(13)
                   .type(this.ancMode === AncMode.OFF ? ButtonType.Capsule : ButtonType.Normal)
                   .onClick(() => {
                     this.onAnc(AncMode.OFF);
                   })
                 Button('透传')
                   .flexGrow(1)
+                  .fontSize(13)
                   .type(this.ancMode === AncMode.TRANSPARENT ? ButtonType.Capsule : ButtonType.Normal)
                   .onClick(() => {
                     this.onAnc(AncMode.TRANSPARENT);
                   })
                 Button('降噪')
                   .flexGrow(1)
+                  .fontSize(13)
                   .type(this.ancMode === AncMode.ADAPTIVE ? ButtonType.Capsule : ButtonType.Normal)
                   .onClick(() => {
                     this.onAnc(AncMode.ADAPTIVE);
+                  })
+                Button('风噪')
+                  .flexGrow(1)
+                  .fontSize(13)
+                  .type(this.ancMode === AncMode.ANTI_WIND ? ButtonType.Capsule : ButtonType.Normal)
+                  .onClick(() => {
+                    this.onAnc(AncMode.ANTI_WIND);
                   })
               }
               .width('100%')

@@ -11,6 +11,7 @@
  */
 
 import { socket } from '@kit.ConnectivityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 /** transport 常量（GaiaFormatter$Rfcomm.Frame.Header 反编译值） */
 export const GAIA_SOF: number = 0xFF;
@@ -206,16 +207,27 @@ export class Gaia {
     return Gaia.v3frame(Feat.ONEBRINGTWO, PktType.CMD, DuplexCmd.GET_PEERS);
   }
 
-  /** 电量 TLV：`01 64 02 64 03 64` → left=100 right=100 case=100 */
+  /** 电量 TLV：`01 54 02 56 03 ff` → left=84 right=86 case=-1（0xFF = 该路未上报/仓未接入） */
   static parseBattery(payload: Uint8Array): BatteryLevels {
     const levels: number[] = [-1, -1, -1, -1];
     for (let i = 0; i + 1 < payload.length; i += 2) {
       const id: number = payload[i];
-      if (id >= 0 && id <= 3) {
-        levels[id] = payload[i + 1];
+      const val: number = payload[i + 1];
+      if (id >= 0 && id <= 3 && val !== 0xFF && val <= 100) {
+        levels[id] = val;
       }
     }
     return { left: levels[1], right: levels[2], caseBatt: levels[3] };
+  }
+
+  /** HEX 打印（调试用） */
+  static hex(buf: Uint8Array): string {
+    let s: string = '';
+    for (let i = 0; i < buf.length; i++) {
+      const h: string = buf[i].toString(16);
+      s += (h.length === 1 ? '0' + h : h) + (i + 1 < buf.length ? ' ' : '');
+    }
+    return s;
   }
 
   /** ASCII 解码（固件版本 / SN / 对端名都是 ASCII） */
@@ -362,8 +374,10 @@ export class GaiaLink {
   /** 电量轮询 */
   async getBattery(): Promise<BatteryLevels> {
     const frames: Array<Uint8Array> = Gaia.batteryPoll();
-    await this.send(frames[0], Feat.BATTERY, BattCmd.GET_SUPPORTED);
+    const sup: Uint8Array = await this.send(frames[0], Feat.BATTERY, BattCmd.GET_SUPPORTED);
     const levels: Uint8Array = await this.send(frames[1], Feat.BATTERY, BattCmd.GET_LEVELS);
+    hilog.info(0x0000, 'Mirage', 'batt supported=%{public}s levels=%{public}s',
+      Gaia.hex(sup), Gaia.hex(levels));
     return Gaia.parseBattery(levels);
   }
 

@@ -12,11 +12,32 @@ FreeBuds 7 风格设备页 + 从官方 APK 逆向落地的 **Gaia V3 over RFCOMM
 | 扫描耳机 | 经典蓝牙发现 `connection.discoveryResult`，`MOONDROP MIRAGE` 自动置顶 |
 | 配对 + 建链 | `connection.pairDevice` + `socket.sppConnect(uuid=1101, SPP_RFCOMM)` + V1 握手 |
 | 电量（左/右/仓） | `BATTERY(13)` cmd0/cmd1 轮询 + TLV 解析，3 秒刷新 |
-| 降噪三档 | `ANC_V2(32)` cmd4：关闭 `00` / 透传 `02` / 降噪 `04`（=自适应降噪） |
+| 降噪四档 | `ANC_V2(32)` cmd4：关闭 `00` / 透传 `02` / 降噪 `04`(自适应降噪) / 风噪 `03`(抗风噪) |
 | 固件版本 | `BASIC(0)` cmd5 → ASCII（实测 `3.5.2`） |
 | 左右 SN | `BASIC(0)` cmd20/cmd21 → ASCII |
 | 双设备对端 | `ONEBRINGTWO(20)` cmd5 → 对端名 |
-| UI | 图 2 复刻：深紫渐变 + 电量胶囊 + 设备卡 + 噪声控制 + 底部三 Tab |
+| UI | 图 2 复刻：深紫渐变 + 电量胶囊 + 设备卡 + 噪声控制四档 + 底部三 Tab |
+
+## 真机验收（2026-10-31，HUAWEI Pura 80 Ultra / HarmonyOS）
+
+`entry-default-signed.hap` 经 `hdc install` 安装成功，`aa start` 启动，实测通过：
+
+| 项 | 实测结果 |
+| --- | --- |
+| 签名 | `verify-app` → `verify codesign success`（Huawei CBG 证书链，profile type=debug） |
+| 安装 | `install bundle successfully` |
+| 建链 | SPP 连上 `MOONDROP MIRAGE`（`8A:99:9A:EC:02:4F`），状态「已连接」 |
+| 电量 | 原始 `01 54 02 56 03 ff` → 左 **84%** / 右 **85%** / 仓 `--`（`0xFF`=仓未接入，正确显示占位） |
+| 降噪四档 | 关闭/透传/降噪/风噪 四个按钮均写入生效并回读确认（状态栏显示「已连接 · 透传 / · 抗风噪 / · 降噪」） |
+| 双设备 | 读回对端 **Pura 80 Ultra**（耳机上报的另一台设备） |
+| 固件/SN | 走 `BASIC(0)` cmd5 / cmd20 / cmd21（ASCII），「我的」页展示 |
+
+踩坑记录（都已修）：
+
+1. `ohos.permission.GET_BLUETOOTH_PEERS_MAC` 受 ACL 管控，普通应用安装直接失败（`9568289 grant request permissions failed`）——本 App 用不到真实 MAC，已移除。
+2. 电量 `0xFF` 是「该路未上报」哨兵值，不能当 255 显示。
+3. `@Builder` 的**值参数不订阅状态**，电量变化不重绘——已改为内联节点。
+4. 耳机已连接时不会出现在扫描结果里，必须走 `connection.getPairedDevices()`，App 已加「已配对设备」区块。
 
 ## 构建（命令行，已实测通过）
 
