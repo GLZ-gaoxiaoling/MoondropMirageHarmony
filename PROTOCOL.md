@@ -128,7 +128,9 @@ TOUCHV3=26, TOUCHV4=31, **ANC_V2=32**。
 ## A.5 ANC（feature 32 = ANC_V2，`V3AncV2Plugin$COMMANDS` 实锤）
 
 - 命令：`GET_CURRENT_MODE=3` / `SET_CURRENT_MODE=4` / `GET_CURRENT_ANC_SWITCH_CONF=41` / `SET_ANC_SWITCH_CONF=42`；通知 `ANC_MODE_CHANGE=1` / `ANC_SWITCH_CONF_CHANGE=2`。
-- 模式值（`AncV2Handler` 常量实锤）：`OFF=0 / ANC_ON=1 / TRANSPARENT=2 / ANTI_WIND=3 / ADAPTIVE=4 / LIVE=5`。
+- 模式值（`AncV2Handler` 常量实锤 + 主人确认语义）：`OFF=0 / ANC_ON=1 / TRANSPARENT=2 / ANTI_WIND=3 / ADAPTIVE=4 / LIVE=5`；
+  主人确认：**自适应(04)就是降噪**（App 的“降噪”档发的就是 04），抗风噪(03)是特殊降噪，LIVE(05“现场感”)语义未知。
+  鸿蒙 UI（图 2 三档）映射：关闭→00，透传→02，降噪→04。
 - **空中包（用户连点三下）**：`CMD 4 + [00]` → RESP `00`；`CMD 4 + [02]` → RESP `02`；`CMD 4 + [04]` → RESP `04`。
 - 结论：三连击 = **OFF → TRANSPARENT → ADAPTIVE**。⚠️ 若主人点的第三下标签是“降噪”而非“自适应”，则该 App 把“降噪”映射到了 ADAPTIVE(4)——待主人确认 ANC 页选项文案（App 内有 `/adaptiveancV2` 路由与自适应降噪文案，见 libapp.so strings）。
 - 开机查询：`CMD 3` → RESP 当前模式；`CMD 41` → RESP `01 01 01 01 00`（切换配置）。
