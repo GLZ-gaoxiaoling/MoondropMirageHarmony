@@ -39,5 +39,8 @@ Android 手机操作：
 - ✅ 工程骨架（DevEco 模板）+ 包名 `com.moondrop.mirage`
 - ✅ `ble/MirageBle.ets`：UUID/帧编解码/命令字/扫描连接/命令配对（均为逆向实锤）
 - ✅ `pages/DevicePage.ets`：图 2 复刻页（静态 + 连接流程已接）
-- ⏳ 电量/ANC/EQ 真实数据：待 btsnoop 回填
-- ⏳ OTA（杰理/蓝讯/Airoha/Gaia 四通道）：第二阶段
+- ⏳ 电量/ANC/EQ 真实数据：✅ 已回填（Gaia V3，见 PROTOCOL.md 附录 A）
+- ✅ `ble/GaiaSpp.ets`：Gaia transport/V3 编解码 + ANC/电量/EQ 业务封装（194 帧链式验证）
+- ⏳ DevicePage 改接 GaiaSpp SPP 通道 + DevEco 编译验证（下一轮）
+- ⏳ EQ blob 字节语义 / ANC 第三选项文案 / 低电量包二次确认（待 V2 轮补抓）
+- ⏳ OTA（杰理/蓝讯/Airoha/Gaia 四通道）、手势、双设备页（第二阶段）
