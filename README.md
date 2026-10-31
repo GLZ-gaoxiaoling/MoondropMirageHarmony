@@ -9,7 +9,8 @@ FreeBuds 7 风格设备页 + 从官方 APK 逆向落地的 **Gaia V3 over RFCOMM
 
 | 能力 | 实现 |
 | --- | --- |
-| 扫描耳机 | 经典蓝牙发现 `connection.discoveryResult`，`MOONDROP MIRAGE` 自动置顶 |
+| 扫描耳机 | 经典蓝牙发现 `connection.discoveryResult`，`MOONDROP MIRAGE` 自动置顶；耳机已连接时不在发现结果里，另有 `getPairedDevices()` 的「已配对设备」入口 |
+| 自动接管 | 进页面/回前台时若耳机已与手机连接，自动建 Gaia 会话直接进控制台（无需手动点连接）；手动「断开连接」后不再自动重连 |
 | 配对 + 建链 | `connection.pairDevice` + `socket.sppConnect(uuid=1101, SPP_RFCOMM)` + V1 握手 |
 | 电量（左/右/仓） | `BATTERY(13)` cmd0/cmd1 轮询 + TLV 解析，3 秒刷新 |
 | 降噪四档 | `ANC_V2(32)` cmd4：关闭 `00` / 透传 `02` / 降噪 `04`(自适应降噪) / 风噪 `03`(抗风噪) |
