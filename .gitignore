@@ -1,5 +1,4 @@
 .hvigor/
-hvigor/
 build/
 entry/build/
 node_modules/
@@ -9,6 +8,7 @@ oh_modules/
 *.hap
 *.app
 local.properties
+.DS_STORE
 .DS_Store
 *.log
 # 本地签名配置（含凭据，绝不入库）
